@@ -347,8 +347,15 @@ shinyUI(
                                                    <font size = "2">Wikidata items interactive maps.</font></li><br>
                                                    <li><b><a href = "http://wdcm.wmflabs.org/WDCM_StructureDashboard/">WDCM Structure</a></b><br>
                                                    <font size = "2">A method to investigate the WDCM Taxonomy and improve the choice of items that undergo analyses.</font></li><br>
+                                                   <li><b><a href = "http://wdcm.wmflabs.org/WDCM_BiasesDashboard/">WDCM Biases</a></b><br>
+                                                   <font size = "2">The WDCM gender bias and north-south divide statistics.</font></li><br>
+                                                   <hr>
                                                    <li><b><a href = "https://wikitech.wikimedia.org/wiki/Wikidata_Concepts_Monitor">WDCM System Technical Documentation</a></b><br>
-                                                   <font size = "2">The WDCM Wikitech Page.</font></li>
+                                                   <font size = "2">The WDCM Wikitech Page.</font></li><br>
+                                                   <li><b><a href = "https://www.wikidata.org/wiki/Wikidata:Wikidata_Concepts_Monitor">WDCM Wikidata Project Page</a></b><br>
+                                                   <font size = "2">The WDCM Wikidata Project Page.</font></li><br>
+                                                   <li><b><a href = "https://www.wikidata.org/wiki/Wikidata:Wikidata_Concepts_Monitor/WDCM_Journal">The WDCM Journal</a></b><br>
+                                                   <font size = "2">A regularly update selection of the most interesting empirical findings from WDCM.</font></li>
                                                    </ul>'
                                               )
                                        )
