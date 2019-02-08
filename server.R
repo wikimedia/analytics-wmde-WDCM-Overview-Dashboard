@@ -1,5 +1,5 @@
 ### ---------------------------------------------------------------------------
-### --- WDCM Dashboard Module, v. Beta 0.1
+### --- WDCM Overview Dashboard, v. Beta 0.1
 ### --- Script: server.R, v. Beta 0.1
 ### ---------------------------------------------------------------------------
 
@@ -9,6 +9,7 @@ rm(list = ls())
 ### --- general
 library(shiny)
 library(RMySQL)
+library(XML)
 library(data.table)
 library(DT)
 library(stringr)
@@ -32,25 +33,24 @@ library(ggvis)
 ### --- Server (Session) Scope
 ### --------------------------------
 
+### --- Config File
+params <- xmlParse('wdcmConfig_wdcmOverviewDashboard.xml')
+params <- xmlToList(params)
+
 ### --- Credentials
 # - credentials on tools.labsdb
-setwd('/home/goransm/WMDE/WDCM/WDCM_RScripts')
-cred <- readLines('/home/goransm/mySQL_Credentials/replica.my.cnf')
+cred <- readLines(params$mySQL_Credentials_Path)
 mySQLCreds <- data.frame(user = gsub("^[[:alnum:]]+\\s=\\s", "", cred[2]),
                          password = gsub("^[[:alnum:]]+\\s=\\s", "", cred[3]),
                          stringsAsFactors = F)
 rm(cred)
 
 
-
-# setwd('/home/goransm/WMDE/WDCM/WDCM_RScripts/WDCM_Dashboard/aux')
-setwd('/srv/shiny-server/aux')
-
 ### -- Connect
 con <- dbConnect(MySQL(), 
-                 host = "tools.labsdb", 
-                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
-                 dbname = "u16664__wdcm_p",
+                 host = params$db_host, 
+                 defult.file = params$mySQL_Credentials_Path,
+                 dbname = params$db_name,
                  user = mySQLCreds$user,
                  password = mySQLCreds$password)
 
@@ -137,7 +137,7 @@ dbDisconnect(con)
 
 ### --- Fetch update info
 setwd('/srv/shiny-server/WDCM_OverviewDashboard/update/')
-update <- read.csv('toLabsReport.csv', 
+update <- read.csv('WDCM_MainReport.csv', 
                    header = T,
                    check.names = F,
                    stringsAsFactors = F,
@@ -146,14 +146,11 @@ update <- read.csv('toLabsReport.csv',
 ### --- shinyServer
 shinyServer(function(input, output, session) {
   
-  ### --- output: updateInfo
-  output$updateInfo <- renderText({
-    date <- update$timeStamp[dim(update)[1]]
-    date <- strsplit(as.character(date), split = " ", fixed = T)[[1]][1]
-    date <- strsplit(date, split = "-", fixed = T)
-    date[[1]][2] <- month.name[as.numeric(date[[1]][2])]
-    date <- paste(unlist(date), collapse = " ")
-    return(paste("<p align=right>Last update: <i>", date, "</i></p>", sep = ""))
+  ### --- output: updateString
+  output$updateString <- renderText({
+    date <- update[max(which(grepl("Orchestra END", update$Step))), ]$Time
+    date <- paste0(date, " UTC")
+    return(paste('<p style="font-size:80%;"align="right"><b>Last update: </b><i>', date, '</i></p>', sep = ""))
   })
   
   ### ----------------------------------
@@ -218,7 +215,7 @@ shinyServer(function(input, output, session) {
                                              y = D2, 
                                              label = Category)) +
       scale_color_discrete(guide=FALSE) +
-      geom_point(aes(size = Usage), fill = "white", color = "darkblue", shape=21) +
+      geom_point(aes(size = Usage), fill = "cadetblue1", color = "cadetblue4", shape=21) +
       scale_size(name = "Usage", 
                  breaks = waiver(), 
                  labels = comma,
@@ -227,7 +224,7 @@ shinyServer(function(input, output, session) {
                  trans = "identity", 
                  guide = "legend") + 
       theme_bw() +
-      geom_text(size = 4, show.legend = FALSE) +
+      geom_text_repel(size = 4, show.legend = FALSE) +
       theme(axis.text.x = element_blank()) +
       theme(axis.text.y = element_blank()) +
       theme(axis.title.x = element_blank()) +
@@ -345,7 +342,7 @@ shinyServer(function(input, output, session) {
       theme(axis.title.y = element_text(size = 12)) +
       theme(axis.ticks.x = element_blank()) +
       theme(axis.ticks.y = element_blank()) +
-      theme(panel.background = element_rect(fill = "snow2")) +
+      theme(panel.background = element_rect(fill = "white")) +
       theme(panel.border = element_blank()) +
       theme(panel.grid = element_blank()) + 
       theme(legend.position = "none") +
