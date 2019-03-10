@@ -4,8 +4,6 @@
 ### ---------------------------------------------------------------------------
 
 ### --- Setup
-rm(list = ls())
-### --------------------------------
 ### --- general
 library(shiny)
 library(RMySQL)
@@ -33,118 +31,116 @@ library(ggvis)
 ### --- Server (Session) Scope
 ### --------------------------------
 
+### --- functions
+get_WDCM_table <- function(url_dir, filename, row_names) {
+  read.csv(paste0(url_dir, filename), 
+           header = T, 
+           stringsAsFactors = F,
+           check.names = F)
+}
+
+# - projectType() to determine project type
+projectType <- function(projectName) {
+  unname(sapply(projectName, function(x) {
+    if (grepl("commons", x, fixed = T)) {"Commons"
+    } else if (grepl("mediawiki|meta|species|wikidata", x)) {"Other"
+    } else if (grepl("wiki$", x)) {"Wikipedia"
+    } else if (grepl("quote$", x)) {"Wikiquote"
+    } else if (grepl("voyage$", x)) {"Wikivoyage"
+    } else if (grepl("news$", x)) {"Wikinews"
+    } else if (grepl("source$", x)) {"Wikisource"
+    } else if (grepl("wiktionary$", x)) {"Wiktionary"
+    } else if (grepl("versity$", x)) {"Wikiversity"
+    } else if (grepl("books$", x)) {"Wikibooks"
+    } else {"Other"}
+  }))
+}
+
 ### --- Config File
 params <- xmlParse('wdcmConfig_wdcmOverviewDashboard.xml')
 params <- xmlToList(params)
 
-### --- Credentials
-# - credentials on tools.labsdb
-cred <- readLines(params$mySQL_Credentials_Path)
-mySQLCreds <- data.frame(user = gsub("^[[:alnum:]]+\\s=\\s", "", cred[2]),
-                         password = gsub("^[[:alnum:]]+\\s=\\s", "", cred[3]),
-                         stringsAsFactors = F)
-rm(cred)
-
-
-### -- Connect
-con <- dbConnect(MySQL(), 
-                 host = params$db_host, 
-                 defult.file = params$mySQL_Credentials_Path,
-                 dbname = params$db_name,
-                 user = mySQLCreds$user,
-                 password = mySQLCreds$password)
-
-### --- list existing tables
-q <- "SHOW TABLES;"
-res <- dbSendQuery(con, q)
-st <- fetch(res, -1)
-dbClearResult(res)
-colnames(st) <- "tables"
-
-### --- SET CHARACTER SET utf8
-q <- "SET CHARACTER SET utf8;"
-res <- dbSendQuery(con, q)
-dbClearResult(res)
-
-### --- fetch wdcm2_project
-q <- "SELECT * FROM wdcm2_project;"
-res <- dbSendQuery(con, q)
-wdcmProject <- fetch(res, -1)
-dbClearResult(res) 
-
-### --- determine how many project types are present
-### --- and assign Brewer colors
-lengthProjectColor <- length(unique(wdcmProject$projectype))
-projectTypeColor <- brewer.pal(lengthProjectColor, "Set1")
-
-### --- fetch wdcm2_project_category_2dmap
-q <- "SELECT * FROM wdcm2_project_category_2dmap;"
-res <- dbSendQuery(con, q)
-wdcm2_project_category_2dmap <- fetch(res, -1)
-dbClearResult(res)
-colnames(wdcm2_project_category_2dmap)[3] <- "eu_project"
-wdcm2_project_category_2dmap <- left_join(wdcm2_project_category_2dmap,
-                                          wdcmProject,
-                                          by = "eu_project")
-labelSet <- unlist(lapply(unique(wdcm2_project_category_2dmap$projecttype), function(x){
-  w <- which(wdcm2_project_category_2dmap$projecttype %in% x)
-  lS <- arrange(wdcm2_project_category_2dmap[w, ], desc(eu_count))[1:5, ]
-  lS$eu_project 
-}))
-labelSetSmall1 <- unlist(lapply(unique(wdcm2_project_category_2dmap$projecttype), function(x){
-  w <- which(wdcm2_project_category_2dmap$projecttype %in% x)
-  lS <- arrange(wdcm2_project_category_2dmap[w, ], desc(eu_count))[1, ]
-  lS$eu_project 
-}))
-labelSetSmall3 <- unlist(lapply(unique(wdcm2_project_category_2dmap$projecttype), function(x){
-  w <- which(wdcm2_project_category_2dmap$projecttype %in% x)
-  lS <- arrange(wdcm2_project_category_2dmap[w, ], desc(eu_count))[1:3, ]
-  lS$eu_project 
-}))
-
-wdcm2_project_category_2dmapReduceLabels <- wdcm2_project_category_2dmap 
-wdcm2_project_category_2dmapReduceLabels$eu_project[which(!(wdcm2_project_category_2dmapReduceLabels$eu_project %in% labelSet))] <- ""
-colnames(wdcm2_project_category_2dmap)[c(3, 5,6)] <- c('Project', 'Usage', 'Project Type')
-wdcm2_project_category_2dmap$projectTypeColor <- sapply(wdcm2_project_category_2dmap$`Project Type`, function(x) {
-  projectTypeColor[which(sort(unique(wdcm2_project_category_2dmap$`Project Type`)) %in% x)]
-})
-
-### --- fetch wdcm2_category
-q <- "SELECT * FROM wdcm2_category;"
-res <- dbSendQuery(con, q)
-wdcmCategory <- fetch(res, -1)
-dbClearResult(res) 
-
-### ---fetch wdcm2_category_project_2dmap
-q <- "SELECT * FROM wdcm2_category_project_2dmap;"
-res <- dbSendQuery(con, q)
-wdcm2_category_project_2dmap <- fetch(res, -1)
-dbClearResult(res) 
-wdcm2_category_project_2dmap <- left_join(wdcm2_category_project_2dmap,
-                                          wdcmCategory,
-                                          by = "category")
-colnames(wdcm2_category_project_2dmap)[3:4] <- c('Category', 'Usage')
-
-### --- fetch wdcm2_project_category
-q <- "SELECT * FROM wdcm2_project_category;"
-res <- dbSendQuery(con, q)
-wdcmProjectCategory <- fetch(res, -1)
-dbClearResult(res) 
-colnames(wdcmProjectCategory) <- c('Project', 'Category', 'Usage', 'Project Type')
-
-### --- Disconnect
-dbDisconnect(con)
-
-### --- Fetch update info
-setwd('/srv/shiny-server/WDCM_OverviewDashboard/update/')
-update <- read.csv('WDCM_MainReport.csv', 
-                   header = T,
-                   check.names = F,
-                   stringsAsFactors = F,
-                   row.names = 1)
-
 ### --- shinyServer
 shinyServer(function(input, output, session) {
+  
+  ### --- DATA
+  
+  withProgress(message = 'Downloading data', detail = "Please be patient.", value = 0, {
+  
+    ### --- fetch wdcm2_project
+    wdcmProject <- get_WDCM_table(params$etl_dir, 'wdcm_project.csv')
+    wdcmProject$projectype <- projectType(wdcmProject$eu_project)
+    incProgress(1/6, detail = "Please be patient.")
+    # - determine how many project types are present
+    # - and assign Brewer colors
+    lengthProjectColor <- length(unique(wdcmProject$projectype))
+    projectTypeColor <- brewer.pal(lengthProjectColor, "Set1")
+    
+    ### --- fetch wdcm2_project_category_2dmap
+    wdcm2_project_category_2dmap <-
+      get_WDCM_table(params$ml_dir,
+                     'wdcm_project_category_2dmap.csv',
+                     row_names = T)
+    wdcm2_project_category_2dmap[, 1] <- NULL
+    colnames(wdcm2_project_category_2dmap)[3] <- "eu_project"
+    wdcm2_project_category_2dmap <- left_join(wdcm2_project_category_2dmap,
+                                              wdcmProject,
+                                              by = "eu_project")
+    labelSet <- unlist(lapply(unique(wdcm2_project_category_2dmap$projecttype), function(x){
+    w <- which(wdcm2_project_category_2dmap$projecttype %in% x)
+    lS <- arrange(wdcm2_project_category_2dmap[w, ], desc(eu_count))[1:5, ]
+    lS$eu_project
+    }))
+    labelSetSmall1 <- unlist(lapply(unique(wdcm2_project_category_2dmap$projecttype), function(x){
+      w <- which(wdcm2_project_category_2dmap$projecttype %in% x)
+      lS <- arrange(wdcm2_project_category_2dmap[w, ], desc(eu_count))[1, ]
+
+      lS$eu_project
+      }))
+    labelSetSmall3 <- unlist(lapply(unique(wdcm2_project_category_2dmap$projecttype), function(x){
+      w <- which(wdcm2_project_category_2dmap$projecttype %in% x)
+      lS <- arrange(wdcm2_project_category_2dmap[w, ], desc(eu_count))[1:3, ]
+      lS$eu_project
+      }))
+    wdcm2_project_category_2dmapReduceLabels <- wdcm2_project_category_2dmap
+    wdcm2_project_category_2dmapReduceLabels$eu_project[which(!(wdcm2_project_category_2dmapReduceLabels$eu_project %in% labelSet))] <- ""
+    colnames(wdcm2_project_category_2dmap)[c(3, 5,6)] <- c('Project', 'Usage', 'Project Type')
+    wdcm2_project_category_2dmap$projectTypeColor <- sapply(wdcm2_project_category_2dmap$`Project Type`, function(x) {
+      projectTypeColor[which(sort(unique(wdcm2_project_category_2dmap$`Project Type`)) %in% x)]
+      })
+  
+  ### --- fetch wdcm2_category
+  wdcmCategory <- get_WDCM_table(params$etl, 'wdcm_category.csv')
+  incProgress(5/6, detail = "Please be patient.") 
+  
+  ### ---fetch wdcm2_category_project_2dmap
+  wdcm2_category_project_2dmap <- 
+    get_WDCM_table(params$ml_dir, 
+                   'wdcm2_category_project_2dmap.csv', 
+                   row_names = T)
+  colnames(wdcm2_category_project_2dmap)[1] <- 'id'
+  wdcm2_category_project_2dmap[, 1] <- NULL
+  wdcm2_category_project_2dmap <- left_join(wdcm2_category_project_2dmap,
+                                            wdcmCategory,
+                                            by = "category")
+  colnames(wdcm2_category_project_2dmap)[3:4] <- c('Category', 'Usage')
+  
+  ### --- fetch wdcm2_project_category
+  wdcmProjectCategory <- get_WDCM_table(params$etl_dir, 'wdcm_project_category.csv', row_names = F)
+  wdcmProjectCategory$type <- projectType(wdcmProjectCategory$eu_project)
+  colnames(wdcmProjectCategory) <- c('Project', 'Category', 'Usage', 'Project Type')
+  
+  ### --- Fetch update info
+  update <- read.csv(params$updatePath, 
+                     header = T,
+                     check.names = F,
+                     stringsAsFactors = F,
+                     row.names = 1)
+  
+  })
+  
+  ### --- OUTPUTS
+  
   
   ### --- output: updateString
   output$updateString <- renderText({
@@ -162,7 +158,7 @@ shinyServer(function(input, output, session) {
     ggplot(wdcm2_project_category_2dmapReduceLabels, aes(x = D1, y = D2,
                                                          color = projecttype,
                                                          label = eu_project)) +
-      geom_point(aes(size = eu_count), shape=21) +
+      geom_point(aes(size = eu_count), shape = 21) +
       scale_size(name = "Usage", 
                  breaks = waiver(), 
                  labels = comma,
@@ -214,8 +210,9 @@ shinyServer(function(input, output, session) {
     ggplot(wdcm2_category_project_2dmap, aes(x = D1, 
                                              y = D2, 
                                              label = Category)) +
-      scale_color_discrete(guide=FALSE) +
-      geom_point(aes(size = Usage), fill = "cadetblue1", color = "cadetblue4", shape=21) +
+      scale_color_discrete(guide = FALSE) +
+      geom_point(aes(size = Usage), fill = "cadetblue1", 
+                 color = "cadetblue4", shape = 21) +
       scale_size(name = "Usage", 
                  breaks = waiver(), 
                  labels = comma,
@@ -421,8 +418,8 @@ shinyServer(function(input, output, session) {
                       max = 1,
                       value = 1, {incProgress(amount = 1)})
   
-  
-})
+  })
+
 ### --- END shinyServer
 
 
